@@ -1,6 +1,8 @@
-# AppAI — Intelligent Proactive App Assistant: System Design
+﻿# AppAI — Implementation Plan
 
-> **Status**: Design Discussion Phase — Awaiting Feedback Before Development
+**Version:** 2.0  
+**Status:** Design Complete — Ready for Development  
+**Last Updated:** September 2026
 
 ---
 
@@ -11,434 +13,236 @@ Build a **universal, embeddable AI assistant agent** that can attach itself to *
 - **Reads your app's source code** to deeply understand every feature, form, dialog, and workflow
 - **Visually guides users on the live UI** — draws overlays, highlights, arrows, and step-by-step pointers *directly on the app window*
 - **Proactively helps** — doesn't wait to be asked, recognizes when a user is stuck and acts
+- **Scales across any number of apps and users** via a centralized Hub architecture
 
-> **Confirmed design decisions so far:**
-> - ✅ App source code will be provided as the primary knowledge base
-> - ✅ Visual UI overlay guidance is required (show where to click, drop, etc.)
-> - ✅ Local LLM first (privacy), with OpenAI/Claude as switchable backends
-> - ✅ **Consent-first**: Agent must always ask before taking a screenshot or accessing any private document
+---
+
+## All Design Decisions — Confirmed ✅
+
+| Decision | Confirmed Choice |
+|---|---|
+| **Knowledge base source** | App source code (primary) + optional external docs (PDF, HTML, MD, URLs) |
+| **App crawling** | Source code parsed at registration time (static) — no runtime crawling needed |
+| **UI guidance style** | Visual overlay drawn directly on the live app window |
+| **Overlay navigation** | Step-by-step (default) with toggle to all-steps-at-once tour |
+| **Steps in chat** | Full step list always shown in chat panel upfront, in both overlay modes |
+| **Action execution** | Guide only — agent shows where to click, user performs the action |
+| **Screenshot access** | Consent-first — always ask before capturing; discard after use |
+| **Private doc access** | Consent-first — always ask; session-only unless user says "remember" |
+| **Connectivity model** | AppAI Hub — one central service serving all apps and all users |
+| **Local LLM (primary)** | Ollama (easiest setup) + vLLM (for self-hosted GPU deployments) |
+| **Cloud LLM (optional)** | OpenAI API + Anthropic Claude API — config toggle, requires explicit consent |
+| **Scalability model** | Hub & Spoke — one Hub, isolated per-app KBs, isolated per-user sessions |
 
 ---
 
 ## Privacy & Consent — Core Principle
 
-> [!IMPORTANT]
-> The agent **never silently captures screenshots or reads private documents**. Every such action requires explicit user permission, asked in plain language, before it happens.
+> The agent **never silently captures screenshots or reads private documents**.  
+> Every sensitive action requires explicit user permission, in plain language, before it happens.
 
 ### Screenshot Permission Flow
 
-When the agent determines a screenshot would help it understand the user's current problem:
-
-```
+`
 Agent:  "To better understand what you're seeing, may I take a
-         screenshot of the current screen? It will only be used
-         to answer your question and won't be stored anywhere."
+         screenshot? It will only be used to answer your question
+         and won't be stored anywhere."
 
          [Allow Once]   [Allow for this session]   [No, thanks]
-```
+`
 
-- **Allow Once** — takes one screenshot, then asks again next time
-- **Allow for this session** — no more asking until app restarts
-- **No thanks** — agent works from text description only, no screenshot
+- **Allow Once** — captures one frame, used in one LLM prompt, then discarded
+- **Allow for session** — no more asking until the app restarts
+- **No thanks** — agent works from text description only; never retries without asking
 
-Screenshots are **never saved to disk** and **never sent to any server**. Used only in the current LLM reasoning context, then discarded.
+Screenshots are **never saved to disk** and **never sent to any external server**.
 
 ### Private Document Permission Flow
 
-When the agent thinks a private doc would help answer a question:
-
-```
-Agent:  "I think a user manual or internal doc might help here.
-         Would you like to share one with me? I'll read it locally —
+`
+Agent:  "A user manual or internal doc might help here.
+         Would you like to share one? I'll read it locally —
          it won't leave your machine or be stored beyond this session."
 
          [Choose a file...]   [Not now]
-```
+`
 
-- Document is read and embedded locally into a **session-only** temporary knowledge base
+- Read and embedded locally into a session-only temporary knowledge base
 - Discarded when session ends (unless user explicitly says "remember this doc")
 
-### Permissions the Agent Will NEVER Act On Without Asking
+### Consent Config (User-Controlled)
+
+`yaml
+# ~/.appai/consent.yaml
+screenshot_permission: ask_every_time   # ask_every_time | session | never
+doc_access_permission: ask_every_time
+clipboard_permission: never
+cloud_llm_consent: not_confirmed        # must be explicitly confirmed by admin
+`
+
+### Actions That Always Require Consent
 
 | Action | Policy |
 |---|---|
 | Take a screenshot | ✅ Always ask first |
 | Read a file from disk | ✅ Always ask first |
 | Access clipboard | ✅ Always ask first |
-| Send data to cloud LLM (OpenAI/Claude) | ✅ Warn at setup + require confirmation |
-| Store any user data persistently | ✅ Always ask first |
-
-### Consent Config (User-Controlled)
-
-```yaml
-# ~/.appai/consent.yaml
-screenshot_permission: ask_every_time   # ask_every_time | session | never
-doc_access_permission: ask_every_time
-clipboard_permission: never
-cloud_llm_consent: confirmed            # set only after user explicitly approves
-```
-
----
-
-## All Design Decisions — Confirmed ✅
-
-| Decision | Choice |
-|---|---|
-| Knowledge base source | App source code (primary) + optional external docs |
-| UI guidance style | Visual overlay on live app window |
-| Overlay navigation | **Step-by-step** (default) with option to switch to **all-steps-at-once** tour |
-| All steps visible in chat | ✅ Yes — full step list always shown in chat panel upfront |
-| Action execution | **Guide only** — agent shows where to click, user does the clicking |
-| Screenshot/doc access | **Consent-first** — always ask before capturing or reading |
-| Local LLM | **Ollama** (primary) + **vLLM** (for self-hosted/deployed AI servers) |
-| Cloud LLM fallback | OpenAI API + Anthropic Claude API (config toggle) |
-| Connectivity model | **AppAI Hub** (centralized, serves all apps + all users — see below) |
+| Send data to cloud LLM | ✅ Admin warning at setup + explicit confirmation |
+| Persist any user data | ✅ Always ask first |
 
 ---
 
 ## Scalability Architecture — Hub & Spoke Model
 
-> [!IMPORTANT]
-> **Key insight**: Running one sidecar per app doesn't scale. 10 apps = 10 processes = wasted resources and no shared intelligence. The right approach is a **single AppAI Hub** that all apps connect to.
+> **Key decision:** One sidecar per app does not scale.  
+> 10 apps = 10 LLM processes in RAM = wasted resources.  
+> The solution is a **single AppAI Hub** that all apps connect to.
 
-### The Problem With "One Sidecar Per App"
+### What's Shared vs What's Isolated
 
-```
-❌ Bad — doesn't scale:
+| Resource | Shared Across Apps | Isolated |
+|---|---|---|
+| LLM instance | ✅ One for all apps | — |
+| Embedding model | ✅ One for all | — |
+| App Knowledge Base | — | ✅ Per app (App1_KB ≠ App2_KB) |
+| User conversation | — | ✅ Per (user_id × app_id) |
+| Overlay state | — | ✅ Per user session |
 
-App1 ──▶ Agent Process 1 (own LLM, own KB)
-App2 ──▶ Agent Process 2 (own LLM, own KB)
-App3 ──▶ Agent Process 3 (own LLM, own KB)
-...
-App10 ▶ Agent Process 10 (own LLM, own KB)
+### Hub Architecture
 
-= 10 LLM instances loaded in RAM 😱
-= Knowledge bases cannot share anything
-= User sessions isolated in wrong places
-```
-
-### ✅ The Right Approach — AppAI Hub
-
-```
+`
 App1 SDK ──┐
 App2 SDK ──┤
-App3 SDK ──┤                ┌─────────────────────────────────┐
-App4 SDK ──┼── WebSocket ──▶│         AppAI HUB               │
-App5 SDK ──┤                │                                 │
-...        │                │  ┌─────────────────────────┐   │
-App10 SDK ─┘                │  │    App Registry         │   │
-                            │  │  App1_KB  App2_KB ...   │   │
-User sessions ─────────────▶│  │    (isolated per app)   │   │
-(any user, any app)         │  └─────────────────────────┘   │
-                            │                                 │
-                            │  ┌─────────────────────────┐   │
-                            │  │   Session Manager       │   │
-                            │  │  (1 session/user/app)   │   │
-                            │  └─────────────────────────┘   │
-                            │                                 │
-                            │  ┌─────────────────────────┐   │
-                            │  │   ONE Shared LLM        │   │
-                            │  │   (Ollama / vLLM)       │   │
-                            │  └─────────────────────────┘   │
-                            └─────────────────────────────────┘
-```
+App3 SDK ──┤── WebSocket ──▶ ┌─────────────────────────────────┐
+...        │                 │          AppAI HUB               │
+App10 SDK ─┘                 │                                 │
+                             │  App Registry  Session Manager  │
+User sessions ──────────────▶│  App1_KB       App2_KB  ...    │
+                             │  ONE shared LLM (Ollama/vLLM)  │
+                             └─────────────────────────────────┘
+`
 
-**What's shared:** LLM instance, embedding model, infrastructure
-**What's isolated:** Per-app knowledge base, per-user conversation session
+### Two Deployment Modes (Same SDK — Only hub_url Changes)
 
----
+#### Mode 1 — Local Hub
 
-### Two Deployment Modes
+`
+[One Machine]
+  ├── App1.exe ──┐
+  ├── App2.exe ──┼── ws://localhost:7788 ──▶ AppAI Hub
+  └── App3.exe ──┘                               │
+                                    ┌────────────┼────────────┐
+                                    ▼            ▼            ▼
+                                 Ollama      ChromaDB      SQLite
+`
 
-The Hub design supports two modes — same SDK, just change `hub_url` in config:
+Best for: development, small teams (<10 users), fully offline environments.
 
-#### Mode 1 — Local Hub (Small Teams / Developer Setup)
+#### Mode 2 — Enterprise Server
 
-```
-[User's Machine]
-  ├── App1.exe  ──┐
-  ├── App2.exe  ──┤── WebSocket ──▶  AppAI Hub (localhost:7788)
-  ├── App3.exe  ──┘                     │
-  │                                     ├── Ollama (localhost:11434)
-  │                                     ├── ChromaDB (local files)
-  │                                     └── SQLite (app manifests)
-```
+`
+[Machine A]  App1, App2 ──┐
+[Machine B]  App3, App5 ──┼── wss://appai.company.local ──▶ Load Balancer
+[Machine N]  ...          ┘                                       │
+                                           ┌──────────────────────┼─────────┐
+                                           ▼           ▼                    ▼
+                                     Hub Cluster    vLLM (GPU)    Qdrant + Redis
+`
 
-- All 10 apps connect to the **same local Hub** on `localhost`
-- One Ollama instance shared — only one LLM loaded in RAM
-- One knowledge base per app, all stored locally
-- Works fully offline — zero cloud dependency
-
-#### Mode 2 — Enterprise Server (Many Users + Many Apps)
-
-```
-[User Machine 1]  App1, App2 ──┐
-[User Machine 2]  App3, App5 ──┤
-[User Machine 3]  App1, App7 ──┼── HTTPS/WSS ──▶  AppAI Server
-[User Machine N]  ...          ┘                       │
-                                          ┌────────────┴─────────────┐
-                                          │   AppAI Hub Cluster      │
-                                          │  (multiple Hub instances) │
-                                          │   + Load Balancer        │
-                                          └────────────┬─────────────┘
-                                                       │
-                                       ┌───────────────┼───────────────┐
-                                       ▼               ▼               ▼
-                                  vLLM Server    Qdrant DB       Redis
-                                  (GPU node)   (vector store)  (sessions)
-```
-
-- Hub runs on a **central server** (on-premise or private cloud)
-- vLLM on GPU server handles concurrent users efficiently
-- Qdrant replaces ChromaDB for distributed vector storage
-- Redis handles session state across Hub instances
-- All apps across all users connect to the same server
-
----
-
-### How the Hub Handles 10 Apps × N Users
-
-```
-Hub receives: WebSocket connection from App3, User Alice
-  → looks up App3 in App Registry
-  → loads App3_KnowledgeBase context
-  → creates/resumes session: {app: App3, user: Alice}
-  → routes LLM query with App3 KB + Alice's conversation history
-
-Hub receives: WebSocket connection from App1, User Bob
-  → looks up App1 in App Registry
-  → loads App1_KnowledgeBase context
-  → creates/resumes session: {app: App1, user: Bob}
-  → routes LLM query with App1 KB + Bob's conversation history
-  (Alice's session is completely separate)
-```
-
-**Knowledge Base isolation:** Each app's KB is a separate ChromaDB/Qdrant collection — `appai::app1::kb`, `appai::app2::kb`, etc. They never mix.
-
-**Session isolation:** Each `(user_id, app_id)` pair is a separate session. Alice using App3 cannot see Bob using App3.
-
----
+Best for: organizations, 10+ apps, 50+ users.
 
 ### Scalability Growth Path
 
-```
-Stage 1:  1-3 apps, 1-5 users     → Local Hub, Ollama, SQLite
-Stage 2:  5-10 apps, 10-50 users  → Local Hub or small server, Ollama/vLLM, ChromaDB
-Stage 3:  10+ apps, 50+ users     → Hub Cluster, vLLM on GPU, Qdrant, Redis
-Stage 4:  Enterprise              → Multi-region Hubs, HA setup, monitoring
-```
+| Stage | Apps | Users | LLM | Vector Store | Session Store |
+|---|---|---|---|---|---|
+| 1 — Starter | 1–3 | 1–10 | Ollama | ChromaDB | SQLite |
+| 2 — Growing | 5–10 | 10–50 | Ollama / vLLM | ChromaDB | Redis |
+| 3 — Enterprise | 10–30 | 50–500 | vLLM (GPU) | Qdrant | Redis |
+| 4 — Large Scale | 30+ | 500+ | vLLM Cluster | Qdrant Cluster | Redis Cluster |
 
-Each stage uses the **same SDK in the apps** — only the Hub deployment changes.
+**The SDK in every app stays identical across all stages.**
 
----
+### Registering a New App
 
-### Adding a New App — Zero Friction
-
-```bash
-# Register new app with the Hub (one-time setup)
+`ash
 appai register \
   --app-name "BillingApp" \
   --source-path ./billing-app/src \
-  --docs-path ./billing-app/docs
+  --docs-path ./billing-app/docs   # optional
 
-# Hub auto-parses source, builds KB, makes it available
-# All users of BillingApp can now get AI assistance
-```
+# Hub parses source, builds KB, app is ready for all users
+`
 
-The app itself only needs the **thin AppAI SDK** added — no other changes.
+---
 
-## How the Two New Capabilities Work
+## How the Core Capabilities Work
 
 ### A. Source Code as Knowledge Base
 
-Rather than only crawling the running app at runtime, we **parse the app's source code at setup time** to build a far richer understanding.
+Parsed once at registration time. Far richer than runtime crawling — captures all possible states.
 
-**What gets parsed:**
-
-| App Type | Files Analyzed |
+| App Type | Files Parsed |
 |---|---|
-| Qt C++ | `.ui` (widget layouts), `.cpp/.h` (logic, signals/slots), `.qrc` (resources), `CMakeLists.txt` |
-| Qt/QML | `.qml` (component tree, bindings, states), `.js` (logic) |
-| PyQt/PySide | `.py` (widget setup, event handlers) |
-| React/Vue | `.jsx/.tsx/.vue` (components, props, routes) |
-| HTML/Web | `.html`, `.js`, route configs |
+| Qt C++ | .ui, .cpp, .h, .qrc, CMakeLists.txt |
+| Qt QML | .qml, .js |
+| PyQt / PySide | .py |
+| React / Vue | .jsx, .tsx, .vue |
+| HTML / Web | .html, .js, route configs |
 
-**What the parser extracts:**
-- All UI widgets/components with their IDs, labels, tooltips
-- Every menu item, toolbar button, dialog
-- Form fields + their validation rules
-- Signal→slot connections (what triggers what)
+**Extracted knowledge:**
+- Every UI widget with ID, label, tooltip, type, and screen location
+- Every menu item, toolbar action, dialog
+- Form fields + their validation rules and required state
+- Signal → slot connections (what triggers what in Qt)
 - Business logic flows (what happens when user does X)
-- Error messages and their causes
-- Feature names and their locations in the UI hierarchy
+- All error messages and the conditions that cause them
+- Navigation paths between screens
 
-**Result:** A rich `AppKnowledgeBase` — far superior to runtime crawling alone, because it captures *all* possible states, not just what's currently visible.
+**Output:** An AppManifest (SQLite) + vector-embedded knowledge in ChromaDB/Qdrant
 
 ---
 
 ### B. Visual UI Overlay Guidance System
 
-This is the feature that makes AppAI feel like a **human is sitting next to the user pointing at the screen**.
+The agent doesn't just tell users what to do — it **shows them** on the live app window.
 
-#### How it works (Qt Apps):
+#### Qt Implementation
 
-```
-User asks: "How do I export a report as PDF?"
-                    │
-                    ▼
-     Agent looks up source code knowledge:
-     "ExportDialog opened from File > Export > Report
-      triggered by MainWindow::onExportClicked()
-      Widget ID: exportButton, geometry: (x:120, y:45)"
-                    │
-                    ▼
-     Agent sends overlay instruction to SDK:
-     { step: 1, target: "menuBar.File", style: "pulse_ring", label: "Click File" }
-     { step: 2, target: "menu.Export", style: "arrow_point", label: "Then click Export" }
-     { step: 3, target: "menuExport.Report", style: "highlight_box", label: "Then click Report" }
-                    │
-                    ▼
-     Qt Overlay Window draws on screen:
-     ┌─────────────────────────────────┐
-     │  ┌──────────────────────────┐   │
-     │  │ [File]●  Edit  View  Help│   │← pulsing ring on "File"
-     │  └──────────────────────────┘   │
-     │                                 │
-     │   💬 "Step 1: Click the File   │
-     │      menu in the top-left"      │
-     └─────────────────────────────────┘
-```
+`
+QWidget (Overlay Window):
+  - Qt::WindowStaysOnTopHint   → always above the app
+  - Qt::FramelessWindowHint    → no window border/title
+  - WA_TransparentForMouseEvents → clicks pass through to real app
+  - QPainter draws: rings, arrows, spotlights, step numbers
+`
 
-#### Overlay Techniques:
+#### Web Implementation
 
-**For Qt Apps — Transparent Overlay Window:**
-```
-QWidget with:
-  - Qt::WindowStaysOnTopHint  → always on top
-  - Qt::FramelessWindowHint   → no window border
-  - WA_TransparentForMouseEvents → clicks pass through to the real app
-  - Semi-transparent background
-  - QPainter draws: glowing rectangles, animated arrows, step numbers, tooltips
-```
-
-**For Web Apps — JavaScript Overlay Layer:**
-```
-A <div> injected at z-index: 99999 with:
-  - CSS clip-path spotlight effect (darken everything except target)
+`
+<div> injected at z-index: 99999:
+  - CSS clip-path spotlight (dims all except target)
   - Animated border/glow on target elements
-  - Floating tooltip bubbles with step instructions
-  - (Similar to how Shepherd.js / Intro.js work, but AI-driven)
-```
+  - Floating tooltip bubbles with step text
+`
 
-#### Visual Styles Available:
+#### Overlay Styles
 
-| Style | When Used |
+| Style | Trigger |
 |---|---|
-| **Pulsing Ring** | "Click this button" |
-| **Glowing Box** | "Look at this area / fill this form" |
-| **Animated Arrow** | "Drag/drop here" |
-| **Spotlight** | Dim everything except the target area |
-| **Step Number Badge** | Multi-step workflows (1→2→3) |
-| **Drop Zone Indicator** | "Drop your file here" with animated dashed border |
-| **Error Pointer** | Points to the field causing an error |
+| Pulsing Ring | "Click this button" |
+| Glowing Box | "Fill in this field" |
+| Animated Arrow | "Navigate to this menu" |
+| Spotlight | Full focus on one area |
+| Drop Zone Indicator | "Drop your file here" |
+| Step Number Badge | Multi-step workflows ①②③ |
+| Error Pointer | Points to field causing an error |
 
-#### Step-by-Step Flow:
-```
-1. User asks a question
-2. Agent generates a list of UI steps with target widget IDs
-3. SDK resolves widget IDs → screen coordinates (via QAccessible / DOM)
-4. Overlay appears on Step 1
-5. User performs the action
-6. SDK detects the action was performed (event listener)
-7. Overlay advances to Step 2
-8. Repeats until task is complete
-9. Overlay disappears with a ✅ confirmation
-```
+#### Overlay Protocol (JSON)
 
----
-
-## Full System Architecture
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                      HOST APPLICATION                           │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              VISUAL OVERLAY LAYER                        │  │
-│  │  (Transparent Qt window / JS div — always on top)        │  │
-│  │  ┌──────────┐  ┌───────────┐  ┌────────────────────────┐ │  │
-│  │  │ Pulsing  │  │  Arrow    │  │  Step tooltip bubble   │ │  │
-│  │  │  Ring    │  │  Pointer  │  │  "Click here to Export"│ │  │
-│  │  └──────────┘  └───────────┘  └────────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌──────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │ Qt / Web │───▶│  AppAI SDK   │───▶│  Chat Sidebar Panel  │  │
-│  │   App    │    │ (thin layer) │    │  (Ask me anything)   │  │
-│  └──────────┘    └──────┬───────┘    └──────────────────────┘  │
-│                          │                                      │
-└──────────────────────────┼──────────────────────────────────────┘
-                           │  WebSocket
-                           ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    AppAI AGENT CORE (Sidecar)                    │
-│                                                                  │
-│ ┌─────────────┐  ┌────────────────┐  ┌────────────────────────┐ │
-│ │ Source Code │  │  Knowledge     │  │  Proactive Engine      │ │
-│ │  Parser     │  │  Base (RAG)    │  │  + Overlay Planner     │ │
-│ │             │  │                │  │                        │ │
-│ │ .ui / .qml  │  │ App Manifest   │  │ Live Context:          │ │
-│ │ .cpp / .py  │  │ + External Docs│  │  current screen        │ │
-│ │ .jsx / .vue │  │ (ChromaDB)     │  │  user intent           │ │
-│ └──────┬──────┘  └──────┬─────────┘  │  next best action      │ │
-│        └────────────────▼────────────┴────────────────────────┘ │
-│                    ┌────────────────────┐                        │
-│                    │   LLM Orchestrator  │                       │
-│                    └────────┬───────────┘                        │
-└─────────────────────────────┼────────────────────────────────────┘
-                              │
-         ┌────────────────────┼──────────────────────┐
-         ▼                    ▼                       ▼
-  ┌─────────────┐    ┌──────────────┐      ┌──────────────────┐
-  │  Local LLM  │    │   OpenAI     │      │  Anthropic       │
-  │  (Ollama)   │    │   API        │      │  Claude API      │
-  └─────────────┘    └──────────────┘      └──────────────────┘
-```
-
----
-
-## Source Code Parser Pipeline
-
-```
-Source Code Files
-      │
-      ▼
-┌──────────────────┐
-│  Language Parser  │  ← Detects Qt/Web project type automatically
-│  (Tree-sitter /  │
-│   AST-based)     │
-└────────┬─────────┘
-         │
-         ├──▶ UI Element Extractor   → widget IDs, labels, geometries
-         ├──▶ Route/Page Extractor   → all screens and navigation paths
-         ├──▶ Action Extractor       → buttons, menus, their triggers
-         ├──▶ Form Extractor         → fields, validators, required fields
-         ├──▶ Error Message Extractor→ all error strings and their conditions
-         └──▶ Workflow Graph Builder → "doing A leads to B leads to C"
-                    │
-                    ▼
-           AppManifest.json  ──▶  ChromaDB (vector indexed)
-```
-
----
-
-## Overlay Message Protocol
-
-The SDK and agent communicate overlay instructions as structured JSON:
-
-```json
+`json
 {
   "type": "overlay_guide",
+  "mode": "step_by_step",
   "steps": [
     {
       "step": 1,
@@ -455,81 +259,153 @@ The SDK and agent communicate overlay instructions as structured JSON:
       "style": "arrow_point",
       "label": "Step 2: Click Export",
       "wait_for": "dialog_open"
-    },
-    {
-      "step": 3,
-      "target_id": "dropZoneImport",
-      "target_type": "qt_widget",
-      "style": "drop_zone_indicator",
-      "label": "Step 3: Drop your PDF file here",
-      "wait_for": "file_dropped"
     }
   ]
 }
-```
+`
+
+#### Step Flow
+
+`
+1. User asks a question
+2. Agent returns: chat message (all steps listed) + overlay_steps JSON
+3. Chat panel shows all steps immediately (both modes)
+4. Overlay starts on Step 1
+5. User performs action → SDK detects it → advances to Step 2
+6. Repeats until all steps done → ✅ confirmation shown
+`
 
 ---
 
-## Proactive Triggers
+## Full System Architecture
 
-| User Situation | Agent Response |
+`
+┌───────────────────────────────────────────────────────────────────┐
+│                        HOST APPLICATION                            │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  VISUAL OVERLAY LAYER (Transparent — clicks pass through)   │  │
+│  │  ● Pulsing rings  ➜ Arrows  ■ Spotlights  ⬚ Drop zones    │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌──────────────────────┐   ┌────────────────────────────────┐    │
+│  │   HOST APP CODE       │   │  CHAT PANEL (SDK-rendered)     │    │
+│  │  Qt Widgets / React  │◀─▶│  • All steps shown upfront     │    │
+│  │  Vue / Any framework │   │  • Step-by-step or tour mode   │    │
+│  └──────────────────────┘   │  • Proactive hint bubbles      │    │
+│                              └────────────────────────────────┘    │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  AppAI SDK (thin — ~300 lines per platform)                  │  │
+│  │  • WebSocket client    • Consent manager                     │  │
+│  │  • UI event stream     • Widget ID → coordinate resolver     │  │
+│  │  • Overlay renderer    • Screenshot capture (on consent)     │  │
+│  └───────────────────────────────┬─────────────────────────────┘  │
+└───────────────────────────────────┼────────────────────────────────┘
+                                    │ WebSocket
+                                    ▼
+┌───────────────────────────────────────────────────────────────────┐
+│                         AppAI HUB                                  │
+│                                                                    │
+│  ┌──────────────┐  ┌────────────────┐  ┌───────────────────────┐  │
+│  │ App Registry │  │ Session Manager│  │  Proactive Engine     │  │
+│  └──────────────┘  └────────────────┘  └───────────────────────┘  │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  AGENT CORE                                                  │  │
+│  │  Query Processor → Overlay Planner → Response Builder        │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  KNOWLEDGE BASE ENGINE                                       │  │
+│  │  Source Code Parser → App Manifest → Vector Store (RAG)      │  │
+│  │  Doc Ingestion (on consent) → Session-only KB                │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  LLM ROUTER (config-driven)                                  │  │
+│  │  Ollama (local) │ vLLM (self-hosted) │ OpenAI │ Claude       │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────┘
+`
+
+---
+
+## Proactive Trigger Rules
+
+| User Situation | Agent Action |
 |---|---|
 | Idle on a form > 10s | "Looks like you're filling the Invoice form. Need help?" |
 | Hover over a disabled button | "This button is disabled because the Name field is empty" |
-| Drag a file near the app | Instantly shows drop zone indicator |
-| Gets a validation error | Arrow points to the problematic field + explains why |
-| Opens a complex dialog for the first time | Auto-starts a quick tour overlay |
-| Repeating the same error | "Would you like me to walk you through this step by step?" |
+| Drag a file near the app | Instantly shows drop zone indicator overlay |
+| Validation error visible | Arrow points to the problematic field + explains why |
+| Complex screen, first visit | "This is the Report Builder. Want a quick orientation?" |
+| Same error repeated twice | "Would you like me to walk you through this step by step?" |
 
 ---
 
-## Tech Stack
+## Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Agent Core | Python (FastAPI) |
-| Source Code Parser | Tree-sitter (multi-language AST) |
-| LLM Orchestration | LangChain |
-| Vector Store | ChromaDB (local) |
-| Embeddings | nomic-embed-text (local Ollama) |
-| Qt SDK | C++ QWidget overlay + WebSocket client |
-| Web SDK | JavaScript + CSS overlay + WebSocket client |
-| Communication | WebSocket (JSON protocol) |
-| Knowledge Store | SQLite + ChromaDB |
-| Config | YAML |
-| Local LLM | Ollama (Llama3 / Mistral / Qwen) |
-| Cloud LLM | OpenAI / Anthropic (config toggle) |
+| Layer | Technology | Notes |
+|---|---|---|
+| Hub Framework | Python 3.11+ / FastAPI / asyncio | Best for AI/ML ecosystem |
+| LLM Orchestration | LangChain | RAG pipeline, prompt management, LLM abstraction |
+| Source Code Parser | Tree-sitter (AST) | Multi-language: C++, Python, JS, QML, Vue |
+| Vector Store (local) | ChromaDB | Zero-config, local files |
+| Vector Store (enterprise) | Qdrant | Distributed, clusterable |
+| Session Store (local) | In-memory Python dict | Simple, no deps |
+| Session Store (enterprise) | Redis | Scalable, cross-instance |
+| Structured Store | SQLite (local) / PostgreSQL (enterprise) | App Manifest storage |
+| Local LLM | Ollama (primary) | Llama3, Mistral, Qwen, Phi |
+| Self-hosted LLM | vLLM | GPU-optimized, high concurrency |
+| Cloud LLM (opt-in) | OpenAI API / Anthropic Claude | Requires explicit consent |
+| Embeddings | nomic-embed-text via Ollama | 100% local |
+| Qt SDK | C++ (QWidget overlay + WS client) | |
+| Web SDK | JavaScript (div overlay + WS client) | |
+| Communication | WebSocket / WSS (JSON protocol) | |
+| Config | YAML | One file to switch everything |
+| Auth (enterprise) | JWT + API keys | |
 
 ---
 
 ## Phased Development Roadmap
 
-### Phase 1 — Core Foundation
-- [ ] Agent sidecar (Python/FastAPI + WebSocket server)
-- [ ] LLM router (Ollama + OpenAI + Claude)
-- [ ] Qt SDK with WebSocket client
-- [ ] Basic chat panel UI
+### Phase 1 — Core Foundation (Weeks 1–4)
+- [ ] AppAI Hub skeleton (FastAPI + WebSocket server)
+- [ ] App Registry + Session Manager
+- [ ] LLM Router (Ollama + OpenAI + Claude)
+- [ ] Qt SDK: WebSocket client + basic chat panel
+- [ ] End-to-end: user asks question, gets answer from one test app
 
-### Phase 2 — Source Code Intelligence
-- [ ] Source code parser (Tree-sitter, Qt .ui XML, QML)
-- [ ] AppManifest builder
-- [ ] RAG pipeline (ChromaDB + LangChain)
+### Phase 2 — Source Code Intelligence (Weeks 5–8)
+- [ ] Source code parser: Qt (.ui, .qml, .cpp, .py)
+- [ ] Source code parser: Web (.jsx, .tsx, .vue, .html)
+- [ ] App Manifest builder + SQLite storage
+- [ ] RAG pipeline (LangChain + ChromaDB)
 - [ ] External doc ingestion (PDF, HTML, Markdown, URLs)
+- [ ] Incremental re-parsing on code update
 
-### Phase 3 — Visual Overlay System
-- [ ] Qt transparent overlay window
-- [ ] Overlay styles (pulse ring, arrow, spotlight, drop zone)
-- [ ] Step-by-step advance logic (wait for user action)
-- [ ] Web JS overlay for web apps
+### Phase 3 — Visual Overlay System (Weeks 9–12)
+- [ ] Qt transparent overlay window (QWidget-based)
+- [ ] Overlay styles: pulse ring, arrow, spotlight, drop zone, step badge, error pointer
+- [ ] Overlay Planner: widget name → QAccessible coordinate resolution
+- [ ] Step-by-step advance logic: detect user action → move to next step
+- [ ] All-steps-at-once tour mode (toggle)
+- [ ] Web JavaScript overlay (div + CSS animations)
+- [ ] Overlay ↔ Chat panel sync: all steps shown in chat at query time
 
-### Phase 4 — Proactive Intelligence
-- [ ] Live context tracker (current screen, user actions)
-- [ ] Proactive trigger engine
-- [ ] Idle detection + proactive prompts
+### Phase 4 — Proactive Intelligence (Weeks 13–16)
+- [ ] Live context tracker (current screen, idle time, error state)
+- [ ] Proactive trigger rule engine
+- [ ] Non-intrusive hint bubble UI in chat panel
 - [ ] Drag-file detection + instant drop zone overlay
+- [ ] User preference: disable / configure proactive hints
 
-### Phase 5 — Polish & Multi-App
-- [ ] Config dashboard (YAML + GUI)
-- [ ] Multi-app support
-- [ ] Overlay animations + smooth UX
-- [ ] Performance tuning for local LLM latency
+### Phase 5 — Enterprise & Scalability (Weeks 17–20)
+- [ ] vLLM integration + GPU server setup guide
+- [ ] Enterprise auth (JWT + API keys)
+- [ ] Qdrant integration (replaces ChromaDB)
+- [ ] Redis session store (replaces in-memory)
+- [ ] Admin CLI: register apps, view status, manage users
+- [ ] Load testing + performance tuning
+- [ ] Deployment runbook (local and enterprise modes)
