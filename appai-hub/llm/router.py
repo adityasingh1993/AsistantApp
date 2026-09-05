@@ -105,7 +105,6 @@ class LLMRouter:
         model = self.llm_config.get("model", "qwen2.5:7b")
         temperature = float(self.llm_config.get("temperature", 0.2))
         max_tokens = int(self.llm_config.get("max_tokens", 1024))
-        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY", "")
 
         if provider == "ollama":
             from llm.ollama_backend import OllamaBackend
@@ -134,10 +133,34 @@ class LLMRouter:
                 max_tokens=max_tokens,
             )
 
-        else:
-            raise ValueError(f"Unknown LLM provider: {provider!r}")
+        elif provider == "llama_cpp":
+            from llm.llama_cpp_backend import LlamaCppBackend
+            # Read the llama_cpp sub-config block (all keys optional)
+            lc_cfg = self.llm_config.get("llama_cpp", {})
+            mode = lc_cfg.get("mode", "server")
+            self._backend = LlamaCppBackend(
+                mode=mode,
+                # Server mode options
+                server_url=lc_cfg.get("server_url", "http://localhost:8080"),
+                # Embedded mode options
+                model_path=lc_cfg.get("model_path"),
+                n_ctx=int(lc_cfg.get("n_ctx", 4096)),
+                n_threads=int(lc_cfg.get("n_threads", 8)),
+                n_gpu_layers=int(lc_cfg.get("n_gpu_layers", 0)),
+                chat_format=lc_cfg.get("chat_format", "chatml"),
+                # Shared
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
 
-        logger.info("LLMRouter: backend set to %s (model=%s)", provider, model)
+        else:
+            raise ValueError(
+                f"Unknown LLM provider: {provider!r}. "
+                "Valid options: ollama | openai | anthropic | llama_cpp"
+            )
+
+        logger.info("LLMRouter: backend set to %s (mode=%s)", provider,
+                    self.llm_config.get("llama_cpp", {}).get("mode", "-") if provider == "llama_cpp" else "-")
         return self._backend
 
     # ── generation ───────────────────────────────────────────────────────────

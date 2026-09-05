@@ -4,27 +4,64 @@ hub:
   admin_port: 7789
   debug: true
 
+# ── LLM Provider ──────────────────────────────────────────────────────────────
+# provider options: llama_cpp | ollama | openai | anthropic
+#
 llm:
-  provider: ollama  # ollama | vllm | openai | anthropic
-  model: qwen2.5:7b
-  base_url: http://localhost:11434
+  provider: llama_cpp
   temperature: 0.2
   max_tokens: 1024
-  # api_key: ""  # for openai/anthropic
 
+  # ── llama.cpp (active) ───────────────────────────────────────────────────
+  # Two modes:
+  #   server   — connects to a running llama-server process (recommended)
+  #   embedded — loads .gguf model directly in Python (single-user dev)
+  #
+  llama_cpp:
+    mode: server                         # server | embedded
+
+    # --- Server mode settings (mode: server) --------------------------------
+    server_url: http://localhost:8080    # llama-server address
+
+    # --- Embedded mode settings (mode: embedded) ----------------------------
+    # model_path: C:/models/qwen2.5-7b-instruct-q4_k_m.gguf
+    # n_ctx: 4096          # context window (tokens)
+    # n_threads: 8         # CPU threads
+    # n_gpu_layers: 0      # GPU layers to offload (0 = CPU only, -1 = all)
+    # chat_format: chatml  # chatml | llama-2 | mistral-instruct | gemma
+
+  # ── Ollama (alternative) ─────────────────────────────────────────────────
+  # provider: ollama
+  # model: qwen2.5:7b
+  # base_url: http://localhost:11434
+
+  # ── OpenAI (alternative) ─────────────────────────────────────────────────
+  # provider: openai
+  # model: gpt-4o-mini
+  # (set OPENAI_API_KEY in .env)
+
+  # ── Anthropic Claude (alternative) ───────────────────────────────────────
+  # provider: anthropic
+  # model: claude-3-5-haiku-20241022
+  # (set ANTHROPIC_API_KEY in .env)
+
+# ── Knowledge Base ────────────────────────────────────────────────────────────
 knowledge_base:
   vector_store: chromadb  # chromadb | qdrant
   chromadb_path: ./data/chromadb
   embedding_model: nomic-embed-text  # via Ollama
   embedding_base_url: http://localhost:11434
 
+# ── Storage ───────────────────────────────────────────────────────────────────
 storage:
   sqlite_path: ./data/appai.db
 
+# ── Auth ──────────────────────────────────────────────────────────────────────
 auth:
   jwt_secret: change-this-in-production
   jwt_expire_hours: 8
 
+# ── Support / Ticketing ───────────────────────────────────────────────────────
 support:
   ticketing:
     provider: internal  # internal | jira | freshdesk | zendesk
