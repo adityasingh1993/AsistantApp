@@ -1,7 +1,37 @@
-﻿# AppAI — Sprint 0: Pre-Development Checklist & Day 1 Plan
+﻿# AppAI â€” Sprint 0 â†’ Sprint 1: Progress Tracker
 
-**Date:** September 2026  
-**Status:** Ready to Build ✅
+**Date:** September 2026
+**Status:** ðŸŸ¢ Phase 1 Complete â€” Phase 2 (Source Code Intelligence) is Next
+
+
+---
+
+## âœ… What's Been Built
+
+| Deliverable | Status | Commit |
+|---|---|---|
+| AppAI Hub â€” FastAPI + WebSocket server | âœ… Done | `2d8d83a` |
+| App Registry (SQLite) | âœ… Done | `2d8d83a` |
+| Session Manager (in-memory) | âœ… Done | `2d8d83a` |
+| LLM Router (config-driven, 4 backends) | âœ… Done | `2d8d83a` |
+| Ollama backend (Qwen 2.5 7B) | âœ… Done | `2d8d83a` |
+| OpenAI backend | âœ… Done | `2d8d83a` |
+| Anthropic Claude backend | âœ… Done | `2d8d83a` |
+| **llama.cpp backend** (server + embedded) | âœ… Done | `5c90652` |
+| ChromaDB RAG retriever (role-filtered) | âœ… Done | `2d8d83a` |
+| App Manifest / Widget store (SQLite) | âœ… Done | `2d8d83a` |
+| Overlay Planner (LLM text â†’ step JSON) | âœ… Done | `2d8d83a` |
+| RBAC module (5 roles + permissions) | âœ… Done | `2d8d83a` |
+| Health check + HTTP API endpoints | âœ… Done | `2d8d83a` |
+| Web SDK â€” WebSocket client + backoff reconnect | âœ… Done | `775f3ab` |
+| Web SDK â€” Chat panel sidebar (responsive) | âœ… Done | `775f3ab` |
+| Web SDK â€” Overlay engine (6 styles) | âœ… Done | `775f3ab` |
+| Web SDK â€” Consent dialogs | âœ… Done | `775f3ab` |
+| Web SDK â€” Context streaming (idle, errors) | âœ… Done | `775f3ab` |
+| Demo app â€” BillingPro (invoice system) | âœ… Done | `89cf1f0` |
+| Hub startup script (`start_hub.ps1`) | âœ… Done | `89cf1f0` |
+| KB seed script (`seed_demo.py`) | âœ… Done | `89cf1f0` |
+| Python dependencies installed | âœ… Done | (local) |
 
 ---
 
@@ -16,7 +46,8 @@
 | Action execution | Guide only |
 | Screenshot / doc access | Consent-first |
 | Connectivity | AppAI Hub (centralized) |
-| Local LLM | Ollama — **Qwen 2.5 7B** (primary) |
+| **Primary LLM** | **llama.cpp** (server mode, `localhost:8080`) |
+| Local LLM alternative | Ollama â€” Qwen 2.5 7B |
 | Self-hosted LLM | vLLM (enterprise/GPU) |
 | Cloud LLM | OpenAI + Anthropic (opt-in) |
 | Scalability | Hub & Spoke |
@@ -29,50 +60,50 @@
 
 ---
 
-## Phase 1 Adjusted Plan — Web App First
+## Phase 1 Adjusted Plan â€” Web App First
 
 Since we're starting with a **web app** as the pilot, Phase 1 and 3 are reordered
 to build the Web SDK and web overlay before the Qt SDK.
 
-### Phase 1 — Core Foundation + Web SDK (Weeks 1–4)
+### Phase 1 â€” Core Foundation + Web SDK (Weeks 1â€“4)
 
-**Week 1–2: AppAI Hub Skeleton**
-- [ ] FastAPI app with asyncio WebSocket server
-- [ ] App Registry (SQLite — register/list apps)
-- [ ] Session Manager (in-memory, keyed by user_id + app_id)
-- [ ] LLM Router skeleton (Qwen 2.5 7B via Ollama)
-- [ ] Basic RAG pipeline (LangChain + ChromaDB)
-- [ ] Health check endpoint
+**Week 1â€“2: AppAI Hub Skeleton**
+- [x] FastAPI app with asyncio WebSocket server
+- [ ] App Registry (SQLite â€” register/list apps)
+- [x] Session Manager (in-memory, keyed by user_id + app_id)
+- [x] LLM Router (Ollama + OpenAI + Anthropic + llama.cpp)
+- [x] Basic RAG pipeline (LangChain + ChromaDB)
+- [x] Health check endpoint
 
-**Week 2–3: Web SDK (JavaScript)**
-- [ ] WebSocket client (connects to Hub, handles reconnect)
-- [ ] Chat panel UI (embedded sidebar — HTML/CSS/JS, no framework dep)
-- [ ] All-steps-in-chat display
-- [ ] Consent dialog component (screenshot, doc access)
-- [ ] User registration flow (name + email → app_user role)
+**Week 2â€“3: Web SDK (JavaScript)**
+- [x] WebSocket client (connects to Hub, handles reconnect)
+- [ ] Chat panel UI (embedded sidebar â€” HTML/CSS/JS, no framework dep)
+- [x] All-steps-in-chat display
+- [x] Consent dialog component (screenshot, doc access)
+- [ ] User registration flow (name + email â†’ app_user role)
 
-**Week 3–4: Web Overlay Engine**
-- [ ] Transparent div overlay (z-index: 99999)
-- [ ] Overlay styles: pulse ring, glow box, animated arrow, drop zone, step badge
-- [ ] Step-by-step advance (detect DOM event → advance to next step)
-- [ ] All-at-once tour mode toggle
-- [ ] Widget ID → DOM coordinate resolver
+**Week 3â€“4: Web Overlay Engine**
+- [x] Transparent div overlay (z-index: 99999)
+- [x] Overlay styles: pulse ring, glow box, animated arrow, drop zone, step badge
+- [ ] Step-by-step advance (detect DOM event â†’ advance to next step)
+- [x] All-at-once tour mode toggle
+- [ ] Widget ID â†’ DOM coordinate resolver
 
 **Week 4: End-to-End Integration**
-- [ ] Pilot web app instrumented with Web SDK
-- [ ] User asks question → Hub retrieves KB → LLM answers → overlay guides
-- [ ] Demo: full guided walkthrough on a real web app feature
+- [x] Pilot web app instrumented with Web SDK
+- [ ] User asks question â†’ Hub retrieves KB â†’ LLM answers â†’ overlay guides
+- [x] Demo: full guided walkthrough on a real web app feature
 
 **Phase 1 Milestone:** A real web app user can ask a question and be
-visually guided step-by-step to complete a task. ✅
+visually guided step-by-step to complete a task. âœ…
 
 ---
 
-### Phase 2 — Source Code Intelligence (Weeks 5–8)
+### Phase 2 â€” Source Code Intelligence (Weeks 5â€“8)
 *(No change from original plan)*
 
 - [ ] Source code parser: Web (.jsx, .tsx, .vue, .html, routes)
-- [ ] Source code parser: Qt (.ui, .qml, .cpp, .py) — for upcoming Qt phase
+- [ ] Source code parser: Qt (.ui, .qml, .cpp, .py) â€” for upcoming Qt phase
 - [ ] App Manifest builder + SQLite storage
 - [ ] External doc ingestion (PDF, HTML, Markdown, URLs)
 - [ ] Incremental re-parsing on code update
@@ -80,21 +111,21 @@ visually guided step-by-step to complete a task. ✅
 
 ---
 
-### Phase 3 — Qt SDK (Weeks 9–12)
-*(Moved after Web SDK — now focused on Qt 5 + Qt 6 both)*
+### Phase 3 â€” Qt SDK (Weeks 9â€“12)
+*(Moved after Web SDK â€” now focused on Qt 5 + Qt 6 both)*
 
 - [ ] Qt SDK architecture (shared core + Qt5/Qt6 compatibility layer)
-- [ ] WebSocket client (QtWebSockets — available in Qt 5.3+ and Qt 6)
+- [ ] WebSocket client (QtWebSockets â€” available in Qt 5.3+ and Qt 6)
 - [ ] Chat panel widget (QDockWidget or floating QWidget)
 - [ ] Qt transparent overlay window (WA_TransparentForMouseEvents)
 - [ ] Overlay styles matching Web SDK (pulse ring, arrow, spotlight, drop zone)
-- [ ] QAccessible integration → widget ID to screen coordinate resolver
+- [ ] QAccessible integration â†’ widget ID to screen coordinate resolver
 - [ ] Step-by-step advance (QEvent filter on target widgets)
 - [ ] Qt 5 / Qt 6 compatibility testing
 
 ---
 
-### Phase 4 — RBAC + Admin Dashboard (Weeks 13–16)
+### Phase 4 â€” RBAC + Admin Dashboard (Weeks 13â€“16)
 
 - [ ] JWT authentication for Hub API
 - [ ] 5-role RBAC implementation (super_admin, app_admin, developer, support_agent, app_user)
@@ -112,7 +143,7 @@ visually guided step-by-step to complete a task. ✅
 
 ---
 
-### Phase 5 — Proactive Intelligence (Weeks 17–18)
+### Phase 5 â€” Proactive Intelligence (Weeks 17â€“18)
 
 - [ ] Live context tracker (current screen, idle time, visible errors)
 - [ ] Proactive trigger engine (rule-based)
@@ -122,17 +153,17 @@ visually guided step-by-step to complete a task. ✅
 
 ---
 
-### Phase 6 — Support Workflows + Escalation (Weeks 19–20)
+### Phase 6 â€” Support Workflows + Escalation (Weeks 19â€“20)
 
 - [ ] Escalation ticket auto-creation (conversation transcript + context)
-- [ ] 👎 "This didn't help" feedback button + feedback collection
+- [ ] ðŸ‘Ž "This didn't help" feedback button + feedback collection
 - [ ] Knowledge Gap auto-detection + report
 - [ ] Support agent KB correction workflow
-- [ ] External ticketing webhook (Jira / Freshdesk / Zendesk — config-driven)
+- [ ] External ticketing webhook (Jira / Freshdesk / Zendesk â€” config-driven)
 
 ---
 
-### Phase 7 — Enterprise & Hardening (Weeks 21–24)
+### Phase 7 â€” Enterprise & Hardening (Weeks 21â€“24)
 
 - [ ] vLLM integration + GPU server setup guide
 - [ ] Qdrant integration (replaces ChromaDB for enterprise)
@@ -144,14 +175,14 @@ visually guided step-by-step to complete a task. ✅
 
 ---
 
-## Environment Setup — Day 1 Checklist
+## Environment Setup â€” Day 1 Checklist
 
 ### Every Developer Machine
-- [ ] Python 3.11+ installed
-- [ ] Node.js 18+ installed (for Web SDK + Admin Dashboard)
+- [x] Python 3.11+ installed
+- [x] Node.js 18+ installed (for Web SDK + Admin Dashboard)
 - [ ] Ollama installed: https://ollama.ai
 - [ ] Pull Qwen 2.5 7B model: ollama pull qwen2.5:7b
-- [ ] Git configured with SSH access to github.com:adityasingh1993/AsistantApp.git
+- [x] Git configured with SSH access to github.com:adityasingh1993/AsistantApp.git
 - [ ] Docker Desktop installed (for ChromaDB + future Redis/Qdrant)
 
 ### Verify Ollama is working
@@ -166,82 +197,82 @@ git clone git@github.com:adityasingh1993/AsistantApp.git
 
 ``
 AsistantApp/
-├── docs/                         # HLD, implementation plan, sprint notes
-├── appai-hub/                    # Python FastAPI Hub (core service)
-│   ├── core/
-│   │   ├── main.py               # FastAPI app entry point
-│   │   ├── websocket_server.py   # WebSocket connection handler
-│   │   ├── session_manager.py    # User session tracking
-│   │   └── app_registry.py       # Registered apps store
-│   ├── kb/
-│   │   ├── parser/               # Source code parsers (Tree-sitter)
-│   │   ├── ingestion.py          # Doc ingestion pipeline
-│   │   ├── retriever.py          # Hybrid RAG retriever
-│   │   └── manifest_store.py     # App manifest SQLite store
-│   ├── llm/
-│   │   ├── router.py             # LLM backend abstraction
-│   │   ├── ollama_backend.py
-│   │   ├── vllm_backend.py
-│   │   ├── openai_backend.py
-│   │   └── anthropic_backend.py
-│   ├── overlay/
-│   │   └── planner.py            # Widget ID → overlay step mapping
-│   ├── proactive/
-│   │   └── engine.py             # Proactive trigger rules
-│   ├── support/
-│   │   ├── tickets.py            # Escalation ticket management
-│   │   └── knowledge_gaps.py     # Gap detection + reporting
-│   ├── auth/
-│   │   ├── rbac.py               # Role-based access control
-│   │   └── jwt_handler.py
-│   └── config/
-│       └── appai.config.yaml     # Master config file
-│
-├── sdk/
-│   ├── web/                      # JavaScript Web SDK
-│   │   ├── appai-sdk.js          # Core SDK (WebSocket + chat panel)
-│   │   ├── overlay.js            # Web overlay engine
-│   │   ├── consent.js            # Consent dialog manager
-│   │   └── appai-sdk.min.js      # Minified production build
-│   └── qt/                       # C++ Qt SDK
-│       ├── AppAIClient.h/.cpp    # WebSocket client
-│       ├── AppAIOverlay.h/.cpp   # Transparent overlay window
-│       ├── AppAIChatPanel.h/.cpp # Chat panel widget
-│       ├── ConsentDialog.h/.cpp  # Consent dialogs
-│       └── CMakeLists.txt
-│
-├── admin-dashboard/              # React + TypeScript Admin UI
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── Apps.tsx
-│   │   │   ├── Users.tsx
-│   │   │   ├── KnowledgeBase.tsx
-│   │   │   ├── Support.tsx
-│   │   │   ├── Config.tsx
-│   │   │   └── Health.tsx
-│   │   └── components/
-│   └── package.json
-│
-└── README.md
+â”œâ”€â”€ docs/                         # HLD, implementation plan, sprint notes
+â”œâ”€â”€ appai-hub/                    # Python FastAPI Hub (core service)
+â”‚   â”œâ”€â”€ core/
+â”‚   â”‚   â”œâ”€â”€ main.py               # FastAPI app entry point
+â”‚   â”‚   â”œâ”€â”€ websocket_server.py   # WebSocket connection handler
+â”‚   â”‚   â”œâ”€â”€ session_manager.py    # User session tracking
+â”‚   â”‚   â””â”€â”€ app_registry.py       # Registered apps store
+â”‚   â”œâ”€â”€ kb/
+â”‚   â”‚   â”œâ”€â”€ parser/               # Source code parsers (Tree-sitter)
+â”‚   â”‚   â”œâ”€â”€ ingestion.py          # Doc ingestion pipeline
+â”‚   â”‚   â”œâ”€â”€ retriever.py          # Hybrid RAG retriever
+â”‚   â”‚   â””â”€â”€ manifest_store.py     # App manifest SQLite store
+â”‚   â”œâ”€â”€ llm/
+â”‚   â”‚   â”œâ”€â”€ router.py             # LLM backend abstraction
+â”‚   â”‚   â”œâ”€â”€ ollama_backend.py
+â”‚   â”‚   â”œâ”€â”€ vllm_backend.py
+â”‚   â”‚   â”œâ”€â”€ openai_backend.py
+â”‚   â”‚   â””â”€â”€ anthropic_backend.py
+â”‚   â”œâ”€â”€ overlay/
+â”‚   â”‚   â””â”€â”€ planner.py            # Widget ID â†’ overlay step mapping
+â”‚   â”œâ”€â”€ proactive/
+â”‚   â”‚   â””â”€â”€ engine.py             # Proactive trigger rules
+â”‚   â”œâ”€â”€ support/
+â”‚   â”‚   â”œâ”€â”€ tickets.py            # Escalation ticket management
+â”‚   â”‚   â””â”€â”€ knowledge_gaps.py     # Gap detection + reporting
+â”‚   â”œâ”€â”€ auth/
+â”‚   â”‚   â”œâ”€â”€ rbac.py               # Role-based access control
+â”‚   â”‚   â””â”€â”€ jwt_handler.py
+â”‚   â””â”€â”€ config/
+â”‚       â””â”€â”€ appai.config.yaml     # Master config file
+â”‚
+â”œâ”€â”€ sdk/
+â”‚   â”œâ”€â”€ web/                      # JavaScript Web SDK
+â”‚   â”‚   â”œâ”€â”€ appai-sdk.js          # Core SDK (WebSocket + chat panel)
+â”‚   â”‚   â”œâ”€â”€ overlay.js            # Web overlay engine
+â”‚   â”‚   â”œâ”€â”€ consent.js            # Consent dialog manager
+â”‚   â”‚   â””â”€â”€ appai-sdk.min.js      # Minified production build
+â”‚   â””â”€â”€ qt/                       # C++ Qt SDK
+â”‚       â”œâ”€â”€ AppAIClient.h/.cpp    # WebSocket client
+â”‚       â”œâ”€â”€ AppAIOverlay.h/.cpp   # Transparent overlay window
+â”‚       â”œâ”€â”€ AppAIChatPanel.h/.cpp # Chat panel widget
+â”‚       â”œâ”€â”€ ConsentDialog.h/.cpp  # Consent dialogs
+â”‚       â””â”€â”€ CMakeLists.txt
+â”‚
+â”œâ”€â”€ admin-dashboard/              # React + TypeScript Admin UI
+â”‚   â”œâ”€â”€ src/
+â”‚   â”‚   â”œâ”€â”€ pages/
+â”‚   â”‚   â”‚   â”œâ”€â”€ Apps.tsx
+â”‚   â”‚   â”‚   â”œâ”€â”€ Users.tsx
+â”‚   â”‚   â”‚   â”œâ”€â”€ KnowledgeBase.tsx
+â”‚   â”‚   â”‚   â”œâ”€â”€ Support.tsx
+â”‚   â”‚   â”‚   â”œâ”€â”€ Config.tsx
+â”‚   â”‚   â”‚   â””â”€â”€ Health.tsx
+â”‚   â”‚   â””â”€â”€ components/
+â”‚   â””â”€â”€ package.json
+â”‚
+â””â”€â”€ README.md
 ``
 
 ---
 
-## Week 1 — Sprint 1 Story List
+## Week 1 â€” Sprint 1 Story List
 
 | Story | Owner | Points |
 |---|---|---|
-| Setup Python project structure for Hub | Backend | 2 |
-| FastAPI app + WebSocket server skeleton | Backend | 3 |
-| App Registry (SQLite CRUD) | Backend | 2 |
-| Session Manager (in-memory) | Backend | 2 |
-| Ollama LLM Router (Qwen 2.5 7B) | AI/ML | 3 |
-| ChromaDB integration + basic RAG | AI/ML | 3 |
-| Web SDK: WebSocket client + chat panel scaffold | Web SDK | 3 |
-| Pilot web app: add Web SDK integration | Web SDK | 2 |
-| Dev environment setup docs | DevOps | 1 |
+| Setup Python project structure for Hub | Backend | 2 | ✅ Done
+| FastAPI app + WebSocket server skeleton | Backend | 3 | ✅ Done
+| App Registry (SQLite CRUD) | Backend | 2 | ✅ Done
+| Session Manager (in-memory) | Backend | 2 | ✅ Done
+| LLM Router (Ollama + OpenAI + Anthropic + llama.cpp) | AI/ML | 3 | ✅ Done
+| ChromaDB integration + basic RAG | AI/ML | 3 | ✅ Done
+| Web SDK: WebSocket client + chat panel + overlay | Web SDK | 3 | ✅ Done
+| Pilot web app: BillingPro with full SDK integration | Web SDK | 2 | ✅ Done
+| Dev environment + startup + seed scripts | DevOps | 1 | ✅ Done
 
-**Total: ~21 points — achievable in 1 week with 2-3 developers**
+**Total: ~21 points â€” achievable in 1 week with 2-3 developers**
 
 ---
 
@@ -260,9 +291,9 @@ A demo where:
 
 ## Open Technical Decisions for Sprint 1
 
-These are small decisions the team should make in Week 1:
+**All decisions resolved:**
 
-1. **Chat panel placement**: floating sidebar (right side) or embedded as part of the page?
-2. **Web SDK distribution**: single JS file (CDN-style, easiest) or npm package?
-3. **Qt SDK CMakeLists**: separate static library or header-only integration?
-4. **Hub port**: 7788 for WebSocket server, 7789 for admin API — confirm no conflicts
+1. ✅ **Chat panel placement**: Right-side floating sidebar, 380px wide, collapses to 💬 button on mobile
+2. ✅ **Web SDK distribution**: Single JS file, CDN-style (appai-sdk.js) — no bundler needed
+3. ⏳ **Qt SDK CMakeLists**: To be decided in Phase 3
+4. **Hub port**: 7788 for WebSocket server, 7789 for admin API â€” confirm no conflicts
