@@ -163,7 +163,39 @@ class LLMRouter:
                     self.llm_config.get("llama_cpp", {}).get("mode", "-") if provider == "llama_cpp" else "-")
         return self._backend
 
-    # ── generation ───────────────────────────────────────────────────────────
+    def is_cloud_provider(self) -> bool:
+        """
+        Return True if the active LLM provider sends data to an external
+        cloud service (OpenAI, Anthropic, etc.).
+
+        This is used by the WebSocket server to set ``cloud_safe=True`` on
+        KB retrieval, which strips all source_code chunks from the prompt
+        context — ensuring code never leaves the machine without the
+        operator explicitly allowing it.
+
+        Local providers (ollama, llama_cpp) return False.
+        Cloud providers (openai, anthropic) return True.
+
+        To explicitly allow code in cloud prompts, set:
+            privacy:
+              allow_code_to_cloud: true
+        in appai.config.yaml.  This is OFF by default.
+        """
+        # Check if the operator has explicitly opted in
+        privacy_cfg = self._config.get("privacy", {})
+        if privacy_cfg.get("allow_code_to_cloud", False):
+            logger.warning(
+                "LLMRouter: allow_code_to_cloud=true — source code chunks "
+                "MAY be included in cloud LLM prompts. "
+                "Ensure this is intentional."
+            )
+            return False  # treat as local (no stripping)
+
+        _CLOUD_PROVIDERS = {"openai", "anthropic"}
+        provider = self.llm_config.get("provider", "ollama")
+        return provider in _CLOUD_PROVIDERS
+
+
 
     async def generate(
         self,

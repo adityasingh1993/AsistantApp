@@ -194,12 +194,17 @@ class WebSocketServer:
         # 1. Save user message
         self.session_manager.add_message(session["session_id"], "user", query_text)
 
-        # 2. Retrieve KB context (non-blocking, handles empty collections gracefully)
+        # 2. Retrieve KB context
+        #    cloud_safe=True forces source_code chunk exclusion when the active
+        #    LLM backend is a cloud provider (OpenAI, Anthropic).
+        #    This ensures code never leaves the machine without explicit consent.
+        cloud_safe = self.llm_router.is_cloud_provider()
         kb_chunks = await self.kb_retriever.retrieve(
             app_id=app_id,
             query=query_text,
             role=role,
             n_results=5,
+            cloud_safe=cloud_safe,
         )
         kb_context = "\n\n---\n\n".join(kb_chunks) if kb_chunks else ""
 

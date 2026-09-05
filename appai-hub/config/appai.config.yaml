@@ -4,6 +4,18 @@ hub:
   admin_port: 7789
   debug: true
 
+# ── Privacy & Code Protection ─────────────────────────────────────────────────
+# IMPORTANT: By default, source code chunks are NEVER sent to cloud LLM
+# providers (OpenAI, Anthropic). They are stripped from all prompts when a
+# cloud provider is active.
+#
+# To allow code in cloud prompts (e.g. you have reviewed the risks and
+# explicitly accept them), set allow_code_to_cloud: true.
+# A warning will be logged every time this takes effect.
+#
+privacy:
+  allow_code_to_cloud: false   # DO NOT set to true without careful review
+
 # ── LLM Provider ──────────────────────────────────────────────────────────────
 # provider options: llama_cpp | ollama | openai | anthropic
 #

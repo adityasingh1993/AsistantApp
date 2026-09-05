@@ -117,18 +117,30 @@ class KBRetriever:
         query: str,
         role: str,
         n_results: int = 5,
+        cloud_safe: bool = False,
     ) -> list[str]:
         """
         Retrieve the top-n relevant text chunks for the query.
 
-        Source-code chunks are automatically excluded for non-developer roles
-        to enforce the code-confidentiality policy.
+        Two independent filters protect source code:
+
+        1. **Role filter** (always active): source_code chunks are excluded
+           for any role that does not have ``can_see_source_code`` permission.
+
+        2. **Cloud-safe filter** (active when cloud_safe=True): source_code
+           chunks are ALWAYS excluded, even for developers, when the Hub is
+           configured to use a cloud LLM provider (OpenAI, Anthropic, etc.).
+           This enforces the rule: *code never leaves the machine without
+           explicit permission*.
 
         Args:
-            app_id:    App whose KB to query.
-            query:     User query text.
-            role:      Caller's RBAC role string.
-            n_results: Maximum number of chunks to return.
+            app_id:     App whose KB to query.
+            query:      User query text.
+            role:       Caller's RBAC role string.
+            n_results:  Maximum number of chunks to return.
+            cloud_safe: If True, strip source_code chunks regardless of role.
+                        Set by the WebSocket server when the active LLM backend
+                        is a cloud provider.
 
         Returns:
             List of text chunks (strings).
@@ -137,13 +149,20 @@ class KBRetriever:
 
         collection = self.get_or_create_collection(app_id, role)
 
-        # Build metadata filter — exclude source_code for non-developers
-        where_filter = None
-        if not RolePermissions.can_see_source_code(role):
-            # ChromaDB `where` clause: content_type must NOT be source_code
-            where_filter = {
-                "content_type": {"$nin": list(_CODE_CONTENT_TYPES)}
-            }
+        # Determine whether source_code must be excluded:
+        #   - always excluded if cloud_safe (LLM is cloud provider)
+        #   - always excluded if the caller's role cannot see code
+        exclude_code = cloud_safe or not RolePermissions.can_see_source_code(role)
+
+        if exclude_code:
+            if cloud_safe:
+                logger.debug(
+                    "KBRetriever: cloud_safe=True — stripping source_code "
+                    "chunks from context (code must not leave the machine)"
+                )
+            where_filter = {"content_type": {"$nin": list(_CODE_CONTENT_TYPES)}}
+        else:
+            where_filter = None
 
         try:
             results = collection.query(
