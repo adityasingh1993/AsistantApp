@@ -1,4 +1,4 @@
-﻿# AppAI — Implementation Plan
+# AppAI — Implementation Plan
 
 **Version:** 2.0  
 **Status:** Design Complete — Ready for Development  
@@ -33,6 +33,201 @@ Build a **universal, embeddable AI assistant agent** that can attach itself to *
 | **Local LLM (primary)** | Ollama (easiest setup) + vLLM (for self-hosted GPU deployments) |
 | **Cloud LLM (optional)** | OpenAI API + Anthropic Claude API — config toggle, requires explicit consent |
 | **Scalability model** | Hub & Spoke — one Hub, isolated per-app KBs, isolated per-user sessions |
+| **Code confidentiality** | Source code is used internally only — never exposed to non-developer users |
+| **User management** | Self-registration as app_user by default; admin assigns roles via dashboard |
+| **Admin Dashboard** | Separate web UI for app config, user management, KB management, system health |
+
+---
+
+## Code Confidentiality Policy
+
+> [!IMPORTANT]
+> AppAI has access to the application's full source code as its knowledge base.
+> This access is **strictly internal**. The agent uses it to *understand* how the app
+> works — it **never reveals source code, class names, function names, file paths,
+> internal logic, or any developer-level detail** to regular (non-developer) users.
+
+### The Rule
+
+The agent behaves like a **knowledgeable support expert** who happens to have read
+the full technical documentation — but only surfaces what is relevant and appropriate
+for the user's role.
+
+| What Agent Knows (internally) | What Agent Tells app_user |
+|---|---|
+| `MainWindow::onExportClicked()` triggers `ExportDialog` | "Click File > Export to open the export screen" |
+| `customerAddress` field has `QLineEdit::setRequired(true)` | "The Customer Address field is required" |
+| `InvoiceService::generatePDF()` calls `PDFRenderer` | "The app will generate and save your PDF automatically" |
+| File path: `/src/billing/invoice_dialog.cpp` | ❌ Never revealed |
+| Signal: `exportCompleted(bool success)` | ❌ Never revealed |
+| SQL query in `InvoiceRepo::fetchAll()` | ❌ Never revealed |
+
+### How It's Enforced
+
+**Layer 1 — System Prompt (LLM level):**
+Every LLM prompt includes a role-based instruction:
+
+```
+[For app_user role]
+SYSTEM: You are a helpful assistant for {app_name}.
+You have deep knowledge of how this application works.
+STRICT RULES:
+- NEVER mention source code, file names, class names, function names,
+  or any internal implementation details.
+- NEVER reveal database queries, API endpoints, or internal architecture.
+- Speak only in terms of what the user sees and interacts with on screen.
+- If asked about internals, say: "I'm not able to share technical details,
+  but I can help you accomplish what you need."
+
+[For developer role]
+SYSTEM: You are a technical assistant for {app_name}.
+You may reference internal implementation details when relevant.
+```
+
+**Layer 2 — Response Filter (post-LLM):**
+Before any response is sent to a non-developer user, it passes through a
+**Content Safety Filter** that:
+- Detects and strips code blocks (` ``` `)
+- Removes patterns matching file paths (`./src/...`, `.cpp`, `.py`, `.h`)
+- Removes class/function signatures (`ClassName::method()`, `def func_name`)
+- Removes SQL-like patterns
+- Logs any filter trigger for admin audit
+
+**Layer 3 — KB Retrieval Filter:**
+When searching the knowledge base for a non-developer user, the retriever
+excludes chunks tagged as `content_type: source_code` and only returns
+chunks tagged as `content_type: ui_description` or `content_type: user_doc`.
+
+```
+KB Chunk Tags:
+  content_type: source_code    → visible to: developer, super_admin only
+  content_type: ui_description → visible to: all roles
+  content_type: user_doc       → visible to: all roles
+  content_type: error_message  → visible to: all roles
+  content_type: workflow       → visible to: all roles
+```
+
+---
+
+## Role-Based Access Control (RBAC)
+
+### User Roles
+
+| Role | Who | Permissions |
+|---|---|---|
+| `super_admin` | Platform owner / IT lead | Full access: all apps, all users, all config, all KB content, developer-level AI responses |
+| `app_admin` | App-specific admin | Manage one or more assigned apps: register, configure, view KB, manage app users |
+| `developer` | App developer / technical user | Can view source-level AI responses, access KB details, re-trigger parsing |
+| `app_user` | End users of the application | Use the AI assistant only; no code exposure; no config access |
+
+### Role Assignment Flow
+
+```
+New user opens the app
+        │
+        ▼
+AppAI SDK shows: "Register to get AI assistance"
+        │
+User fills name + email → registered as app_user (default)
+        │
+        ▼
+Admin Dashboard notifies admin: "New user registered: user@company.com"
+        │
+Admin reviews and optionally upgrades role:
+  app_user → developer  (for technical team members)
+  app_user → app_admin  (for team leads / app owners)
+        │
+        ▼
+User's next session uses their assigned role
+```
+
+### Role-Gated AI Behavior
+
+```
+Same question: "Why is the Export button not working?"
+
+app_user gets:
+  "The Export button requires a date range to be selected first.
+   Please set the Start Date and End Date fields, then try again."
+
+developer gets:
+  "The Export button is gated by validateDateRange() in ExportController.
+   It checks that startDate and endDate are both non-null and that
+   startDate < endDate. The signal exportReady(bool) is emitted only
+   when this validation passes. Check invoice_controller.cpp:L142."
+```
+
+---
+
+## Admin Dashboard
+
+A separate **web-based admin portal** — independent of the host applications.
+Accessible only to `super_admin` and `app_admin` roles.
+
+### Dashboard Sections
+
+#### 1. App Management
+- Register a new application (source path, docs path, app name)
+- View all registered apps with status (KB healthy / needs re-indexing)
+- Trigger manual re-parse / KB rebuild for an app
+- View KB statistics: total chunks, last indexed, index size
+- Enable / disable an app (remove from active registry without deleting KB)
+- Configure per-app settings (proactive hints on/off, overlay styles, LLM override)
+
+#### 2. User Management
+- View all registered users across all apps
+- View role per user per app (a user can be `developer` for App1 but `app_user` for App2)
+- Assign / change roles
+- Approve or reject pending registrations (if approval mode is enabled)
+- Revoke user access
+- View last active timestamp and session count per user
+
+#### 3. Knowledge Base Management
+- Browse KB content per app (filtered by content_type)
+- Add external documents (PDF, HTML, MD, URL) to an app's KB
+- Delete specific KB chunks (e.g., outdated docs)
+- View embedding health and re-embed if needed
+
+#### 4. System Configuration
+- LLM backend: switch between Ollama / vLLM / OpenAI / Claude
+- Test LLM connection and response latency
+- Configure Ollama / vLLM server URL and model name
+- Embedding model configuration
+- Hub WebSocket port and TLS settings
+
+#### 5. Audit Logs
+- All consent events (screenshot allowed/denied, doc shared)
+- All role changes (who changed whose role, when)
+- Content Safety Filter triggers (when a response was filtered)
+- App registration and re-index events
+- User registration events
+
+#### 6. System Health
+- Hub process status (uptime, active connections, requests/sec)
+- LLM backend status (latency, availability)
+- Vector store status (ChromaDB / Qdrant health)
+- Active sessions (currently connected users per app)
+- Resource usage (CPU, RAM, disk)
+
+### Admin Dashboard — Tech Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | React + TypeScript (web app) |
+| Backend API | FastAPI (Python) — extends Hub with admin API routes |
+| Auth | JWT — admin tokens have elevated scope |
+| Charts / Metrics | Recharts or Chart.js |
+| Audit Log Store | SQLite (local) / PostgreSQL (enterprise) |
+
+### Admin Dashboard — Access
+
+```
+URL: http://localhost:7789/admin   (local mode)
+     https://appai.company.local/admin   (enterprise mode)
+
+Login: email + password (admin accounts only)
+       No self-registration — admin accounts created by super_admin only
+```
 
 ---
 

@@ -24,12 +24,14 @@
 11. [Scalability Plan](#11-scalability-plan)
 12. [Technology Stack](#12-technology-stack)
 13. [Security & Privacy Model](#13-security--privacy-model)
-14. [Design Principles](#14-design-principles)
-15. [Risks & Mitigations](#15-risks--mitigations)
-16. [Team & Roles](#16-team--roles)
-17. [Milestones & Delivery Plan](#17-milestones--delivery-plan)
-18. [Success Metrics](#18-success-metrics)
-19. [Glossary](#19-glossary)
+14. [Code Confidentiality & Role-Based Access](#14-code-confidentiality--role-based-access)
+15. [Admin Dashboard](#15-admin-dashboard)
+16. [Design Principles](#16-design-principles)
+17. [Risks & Mitigations](#17-risks--mitigations)
+18. [Team & Roles](#18-team--roles)
+19. [Milestones & Delivery Plan](#19-milestones--delivery-plan)
+20. [Success Metrics](#20-success-metrics)
+21. [Glossary](#21-glossary)
 
 ---
 
@@ -942,7 +944,171 @@ Each application's data is completely isolated from every other application:
 
 ---
 
-## 14. Design Principles
+## 14. Code Confidentiality & Role-Based Access
+
+> [!IMPORTANT]
+> AppAI reads and deeply understands your application's source code — but this is **strictly internal knowledge**. The agent behaves like a knowledgeable support expert: it knows how the app works, but it **never reveals source code, internal function names, file paths, database queries, or any developer-level implementation detail to regular users**.
+
+### The Core Principle
+
+Think of it this way: a good customer support agent knows the technical manual cover-to-cover, but they speak to customers in plain, friendly language — not in technical jargon. AppAI works the same way.
+
+**What AppAI knows internally** vs **what it tells a regular user:**
+
+| AppAI Knows Internally | What a Regular User Hears |
+|---|---|
+| Function `onExportClicked()` opens `ExportDialog` | "Click File > Export to open the export screen" |
+| Field `customerAddress` has a required validator | "The Customer Address field is required to save" |
+| File path `/src/billing/invoice_dialog.cpp` | ❌ Never mentioned |
+| SQL query in `InvoiceRepository::fetchAll()` | ❌ Never mentioned |
+| Signal `exportCompleted(bool)` emitted on success | ❌ Never mentioned |
+
+### Three Layers of Protection
+
+**Layer 1 — Role-Aware AI Prompt:**
+Every time AppAI generates a response, it receives a system-level instruction based on the user's role. For regular users, it says: *"Never mention source code, file names, function names, or internal architecture. Speak only in terms the user can see on their screen."*
+
+**Layer 2 — Response Safety Filter:**
+Before any AI response reaches a regular user's screen, it passes through an automatic filter that detects and removes code blocks, file path patterns, function signatures, and SQL-like content. Any filtered response is logged for the admin to review.
+
+**Layer 3 — Knowledge Base Access Control:**
+When searching the knowledge base for a regular user, the system only retrieves chunks tagged as "UI description," "user documentation," or "workflow" — it skips chunks tagged as "source code." Developers and admins can access all chunk types.
+
+---
+
+### User Roles
+
+AppAI has four roles. Users self-register as **App User** (the default). Admins can upgrade roles.
+
+| Role | Who It's For | What They Can Do |
+|---|---|---|
+| **Super Admin** | Platform owner / IT lead | Full control: all apps, all users, all config, all AI response types |
+| **App Admin** | Team leads / app owners | Manage their assigned apps: register, configure, manage users of those apps |
+| **Developer** | Engineering team members | Full technical AI responses (sees function names, file references), can view KB |
+| **App User** *(default)* | Every end user of the application | Use the AI assistant; responses are always user-friendly and code-free |
+
+### How Role Assignment Works
+
+```
+1. User opens an AppAI-powered application for the first time
+         │
+         ▼
+2. AppAI chat panel shows: "Register to get AI assistance"
+   User enters name + email
+         │
+         ▼
+3. User is registered as App User (default, immediate access)
+         │
+         ▼
+4. Admin Dashboard shows a notification:
+   "New user registered: ravi.kumar@company.com"
+         │
+         ▼
+5. Admin reviews and optionally assigns a different role:
+   App User → Developer   (for technical team members)
+   App User → App Admin   (for team leads)
+         │
+         ▼
+6. User's next session automatically uses their new role
+```
+
+### Same Question, Different Answers Based on Role
+
+> **Question:** "Why is the Export button not working?"
+
+**App User sees:**
+> "The Export button requires a date range to be selected first. Please fill in the Start Date and End Date fields and try again."
+
+**Developer sees:**
+> "The Export button is gated by `validateDateRange()` in `ExportController`. It checks that both `startDate` and `endDate` are non-null and that `startDate < endDate`. Check `invoice_controller.cpp` at line 142."
+
+---
+
+## 15. Admin Dashboard
+
+A **dedicated web-based administration portal**, completely separate from the end-user applications. Only Super Admins and App Admins can log in. Regular users have no access.
+
+### What the Admin Dashboard Provides
+
+#### 📱 App Management
+Admins can register and manage all applications connected to AppAI:
+- Register a new application by pointing to its source code folder
+- View all registered apps and their current knowledge base status ("healthy" / "needs re-indexing")
+- Trigger a manual knowledge base rebuild after a code update
+- Enable or disable an application (disable removes it from active service without deleting its knowledge)
+- Configure per-app settings: proactive hint thresholds, overlay behaviour, LLM model override
+
+#### 👥 User Management
+Full visibility and control over who uses AppAI:
+- View every registered user across all applications
+- See each user's role per application (a person can be a Developer for App1 but an App User for App2)
+- Assign or change roles with a single click
+- Enable "approval mode" — new users wait for admin approval before getting access
+- Revoke access for any user
+- View last-active time and total session count per user
+
+#### 📚 Knowledge Base Management
+- Browse the knowledge base content per application, filtered by type (UI description, workflow, source code, user doc)
+- Add new external documents (PDF manuals, HTML pages, Markdown articles, URLs) to any app's knowledge base
+- Delete outdated knowledge chunks
+- View indexing health and trigger re-embedding if needed
+
+#### ⚙️ System Configuration
+- Switch the AI model backend: Ollama → vLLM → OpenAI → Claude (one click)
+- Test the AI connection and view current response latency
+- Configure the server URL and model name for Ollama or vLLM
+- Manage Hub network settings (port, TLS certificates)
+
+#### 📋 Audit Logs
+A tamper-evident log of all sensitive events:
+- Screenshot consent given / denied (by whom, for which app, when)
+- Private document shared (which user, which app, what file type)
+- Role changes (who changed whose role, old role → new role)
+- Content Safety Filter triggers (when a response was cleaned before delivery)
+- App registration and knowledge base rebuild events
+- User registration events
+
+#### 🏥 System Health
+A real-time view of the platform's operational status:
+- Hub uptime, active connections, requests per second
+- AI model backend: status, average response latency
+- Vector database: health, total stored chunks across all apps
+- Currently active user sessions per application
+- CPU, RAM, and disk usage
+
+### Admin Dashboard Access
+
+| Setting | Local Mode | Enterprise Mode |
+|---|---|---|
+| URL | `http://localhost:7789/admin` | `https://appai.company.local/admin` |
+| Login | Email + password | Email + password (SSO integration possible) |
+| Who can self-register as admin | No one — only Super Admin can create admin accounts | Same |
+| Session timeout | 8 hours | Configurable (e.g., 4 hours) |
+
+### Admin Dashboard Mockup — Navigation
+
+```
+┌──────────────────────────────────────────────────────┐
+│  🤖 AppAI Admin                        [John Admin ▼] │
+├──────────┬───────────────────────────────────────────┤
+│          │                                            │
+│  📱 Apps │   Apps Overview                           │
+│          │   ┌──────────────┬────────┬────────────┐  │
+│  👥 Users│   │ App Name     │ Status │ Users      │  │
+│          │   ├──────────────┼────────┼────────────┤  │
+│  📚 KB   │   │ BillingApp   │ ✅ OK  │ 24 users   │  │
+│          │   │ InventoryApp │ ✅ OK  │ 12 users   │  │
+│  ⚙️ Config│  │ HRPortal     │ ⚠️ Stale│ 8 users    │  │
+│          │   └──────────────┴────────┴────────────┘  │
+│  📋 Logs │                                            │
+│          │   [+ Register New App]  [↻ Rebuild All]   │
+│  🏥 Health│                                           │
+└──────────┴───────────────────────────────────────────┘
+```
+
+---
+
+## 16. Design Principles
 
 These are the non-negotiable rules that govern every decision in AppAI:
 
