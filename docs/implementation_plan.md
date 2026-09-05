@@ -116,9 +116,10 @@ KB Chunk Tags:
 | Role | Who | Permissions |
 |---|---|---|
 | `super_admin` | Platform owner / IT lead | Full access: all apps, all users, all config, all KB content, developer-level AI responses |
-| `app_admin` | App-specific admin | Manage one or more assigned apps: register, configure, view KB, manage app users |
-| `developer` | App developer / technical user | Can view source-level AI responses, access KB details, re-trigger parsing |
-| `app_user` | End users of the application | Use the AI assistant only; no code exposure; no config access |
+| `app_admin` | App-specific admin | Manage assigned apps: register, configure, view KB, manage users of those apps |
+| `developer` | App developer / technical user | Full technical AI responses (sees code references), access KB, re-trigger parsing |
+| `support_agent` | Helpdesk / support team | Review conversation logs, manage escalation tickets, flag bad AI responses, add docs to KB — no source code access |
+| `app_user` | End users of the application | Use the AI assistant only; responses always code-free; no config access |
 
 ### Role Assignment Flow
 
@@ -128,17 +129,18 @@ New user opens the app
         ▼
 AppAI SDK shows: "Register to get AI assistance"
         │
-User fills name + email → registered as app_user (default)
+User fills name + email → registered as app_user (default, immediate access)
         │
         ▼
 Admin Dashboard notifies admin: "New user registered: user@company.com"
         │
 Admin reviews and optionally upgrades role:
-  app_user → developer  (for technical team members)
-  app_user → app_admin  (for team leads / app owners)
+  app_user → support_agent  (for helpdesk / support team members)
+  app_user → developer      (for technical team members)
+  app_user → app_admin      (for team leads / app owners)
         │
         ▼
-User's next session uses their assigned role
+User's next session automatically uses their assigned role
 ```
 
 ### Role-Gated AI Behavior
@@ -150,6 +152,11 @@ app_user gets:
   "The Export button requires a date range to be selected first.
    Please set the Start Date and End Date fields, then try again."
 
+support_agent gets (reviewing a ticket):
+  Same user-friendly response as app_user + conversation context
+  panel showing: screen state, idle time, prior steps attempted.
+  No code references shown.
+
 developer gets:
   "The Export button is gated by validateDateRange() in ExportController.
    It checks that startDate and endDate are both non-null and that
@@ -158,6 +165,195 @@ developer gets:
 ```
 
 ---
+
+## Support Team — Workflows & Tooling
+
+### The Three Support Scenarios
+
+**Scenario 1 — AI Succeeds (No Human Involved)**
+User asks → AI answers → overlay guides → task complete. Support team never involved.
+This should be the majority (target: 80%+) of interactions.
+
+**Scenario 2 — AI Cannot Resolve → Escalation to Human**
+
+```
+User follows AI steps but is still stuck, or AI says "I don't have enough
+information to help with this specific case."
+        │
+        ▼
+AI offers graceful escalation:
+  "I've done my best but I think a human should look at this.
+   Would you like me to raise a support ticket? I'll include our
+   full conversation so they'll have full context immediately."
+
+   [Yes, raise a ticket]   [Let me try something else]
+        │
+        ▼  (if user agrees)
+Ticket created automatically containing:
+  • User identity + app name + current screen + timestamp
+  • Full AI conversation transcript (all questions + all answers)
+  • Screenshot (only if user had already consented earlier in the session)
+  • AI's last known diagnosis of the issue
+  • Steps user already attempted (from overlay history)
+        │
+        ▼
+Support agent picks up the ticket in Support Dashboard.
+Has full context immediately — no "can you describe the problem again."
+```
+
+**Scenario 3 — User Flags a Bad AI Response**
+
+```
+After any AI response, user can click 👎 "This didn't help"
+        │
+        ▼
+AI asks: "Sorry about that. What was wrong with my answer?"
+  [Wrong information]  [Missing steps]  [Doesn't apply to my situation]
+        │
+        ▼
+Feedback logged to Support Dashboard as a "flagged response"
+        │
+        ▼
+Support agent reviews: sees the question, the AI's answer, and the user's feedback
+        │
+  If it's a knowledge gap (AI didn't know):
+        → Agent adds a doc/note to the KB covering the missing topic
+        → Next user who asks the same question gets a correct answer
+        → Ticket auto-closes as "KB updated"
+
+  If it's an AI error (AI gave wrong info despite having KB):
+        → Agent flags for LLM prompt review
+        → Engineering team tunes the prompt or KB chunk for that topic
+```
+
+---
+
+### Knowledge Gap Report — The Feedback Loop
+
+The most valuable thing support teams contribute is **making the AI smarter over time**.
+
+AppAI automatically tracks every question it couldn't answer well:
+
+```
+Knowledge Gap Report (visible in Support Dashboard):
+
+  "How do I bulk upload invoices?"         → asked 8 times, no good AI answer
+  "Where is the archive feature?"          → asked 5 times, AI said "I don't know"
+  "How to change the fiscal year setting?" → asked 3 times, wrong answer flagged
+
+  [+ Add KB Doc for this topic]   ← support agent can attach a doc directly
+```
+
+**The loop:**
+```
+User asks question AI can't answer
+        │
+        ▼
+AI escalates or gives partial answer → user flags it
+        │
+        ▼
+Support agent sees it in Knowledge Gap Report
+        │
+        ▼
+Agent adds a document, note, or KB correction
+        │
+        ▼
+AI answers the question correctly for the next user
+        │
+        ▼
+No more escalation tickets for that topic ✅
+```
+
+Over time, the AI handles more and more cases independently, reducing support team workload.
+
+---
+
+### Support Agent Dashboard Panel
+
+A dedicated **Support Panel** accessible to `support_agent` and `app_admin` roles:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  🤖 AppAI Admin — Support View        [Priya Support ▼]    │
+├───────────┬────────────────────────────────────────────────┤
+│           │                                                 │
+│  🎫 Tickets│  Open Tickets (12)           [Assigned to me] │
+│           │  ┌───────┬─────────────┬──────┬──────────────┐ │
+│  🧠 Gaps  │  │ #1042 │ ravi.kumar  │ Bill │ Waiting 2h   │ │
+│           │  │ #1041 │ meena.s     │ HR   │ Waiting 45m  │ │
+│  👎 Flagged│  │ #1040 │ arjun.k     │ Inv  │ In Progress  │ │
+│           │  └───────┴─────────────┴──────┴──────────────┘ │
+│  📋 History│                                                │
+│           │  🧠 Knowledge Gaps (Top unanswered questions)   │
+│           │  ┌─────────────────────────────┬───────┬──────┐ │
+│           │  │ Question                    │ Count │      │ │
+│           │  ├─────────────────────────────┼───────┼──────┤ │
+│           │  │ Bulk upload invoices?        │  8    │[Fix] │ │
+│           │  │ Archive feature location?    │  5    │[Fix] │ │
+│           │  │ Change fiscal year setting?  │  3    │[Fix] │ │
+│           │  └─────────────────────────────┴───────┴──────┘ │
+└───────────┴────────────────────────────────────────────────┘
+```
+
+**Ticket detail view** (when support agent opens a ticket):
+
+```
+Ticket #1042 — ravi.kumar — BillingApp — Opened 2h ago
+
+Current Screen: Invoice Export Dialog
+Last 5 Actions: [opened report] [set date range] [clicked Export] 
+                [got error] [clicked Export again]
+
+Conversation Transcript:
+  User:   "How do I export this report as PDF?"
+  AppAI:  "Step 1: Click File > Export..." [full steps shown]
+  User:   "I did all that but I get error: Permission denied"
+  AppAI:  "This may be a folder permission issue on your machine..."
+  User:   "Still not working"
+  AppAI:  [raised ticket]
+
+Screenshot: [attached — user consented]
+
+[Reply to User]  [Resolve]  [Mark as Knowledge Gap]  [Escalate to Dev]
+```
+
+---
+
+### Support Agent Permissions Summary
+
+| Capability | support_agent | app_admin | developer |
+|---|---|---|---|
+| View conversation transcripts | ✅ | ✅ | ✅ |
+| Manage escalation tickets | ✅ | ✅ | ❌ |
+| View Knowledge Gap report | ✅ | ✅ | ❌ |
+| Add docs to KB | ✅ | ✅ | ✅ |
+| Flag/review bad AI responses | ✅ | ✅ | ❌ |
+| View source code KB chunks | ❌ | ❌ | ✅ |
+| Register/configure apps | ❌ | ✅ | ❌ |
+| Manage user roles | ❌ | ✅ (own apps) | ❌ |
+| Access system config | ❌ | ❌ | ❌ |
+
+---
+
+### Ticket Integration (Optional — Enterprise)
+
+For organizations that already have a helpdesk system (Jira, Freshdesk, Zendesk):
+- AppAI can push tickets to the external system via webhook
+- Conversation transcript + context attached automatically
+- Two-way sync: resolving the ticket in Jira also marks it resolved in AppAI
+
+```yaml
+# appai.config.yaml
+support:
+  ticketing:
+    provider: jira           # jira | freshdesk | zendesk | internal
+    webhook_url: https://company.atlassian.net/rest/api/3/issue
+    api_key: ${JIRA_API_KEY}
+    project_key: SUPPORT
+```
+
+---
+
 
 ## Admin Dashboard
 
