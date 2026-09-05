@@ -1,0 +1,32 @@
+hub:
+  host: 0.0.0.0
+  ws_port: 7788
+  admin_port: 7789
+  debug: true
+
+llm:
+  provider: ollama  # ollama | vllm | openai | anthropic
+  model: qwen2.5:7b
+  base_url: http://localhost:11434
+  temperature: 0.2
+  max_tokens: 1024
+  # api_key: ""  # for openai/anthropic
+
+knowledge_base:
+  vector_store: chromadb  # chromadb | qdrant
+  chromadb_path: ./data/chromadb
+  embedding_model: nomic-embed-text  # via Ollama
+  embedding_base_url: http://localhost:11434
+
+storage:
+  sqlite_path: ./data/appai.db
+
+auth:
+  jwt_secret: change-this-in-production
+  jwt_expire_hours: 8
+
+support:
+  ticketing:
+    provider: internal  # internal | jira | freshdesk | zendesk
+    # webhook_url: ""
+    # api_key: ""
