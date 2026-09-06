@@ -26,6 +26,7 @@ from core.websocket_server import WebSocketServer
 from llm.router import LLMRouter
 from kb.retriever import KBRetriever
 from kb.manifest_store import ManifestStore
+from kb.parser.code_ingestor import CodeIngestor
 from overlay.planner import OverlayPlanner
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ kb_retriever = KBRetriever(
 )
 manifest_store = ManifestStore(db_path=_STORAGE_CFG.get("sqlite_path", "./data/appai.db"))
 overlay_planner = OverlayPlanner(manifest_store=manifest_store)
+code_ingestor = CodeIngestor(kb_retriever=kb_retriever, manifest_store=manifest_store)
 ws_server = WebSocketServer(
     app_registry=app_registry,
     session_manager=session_manager,
@@ -184,6 +186,44 @@ async def add_kb_document(app_id: str, req: KBAddDocumentRequest):
         }],
     )
     return {"status": "added", "app_id": app_id, "content_type": req.content_type}
+
+
+class IngestSourceRequest(BaseModel):
+    source_path: str = ""
+    max_files: int = 200
+
+
+@app.post("/api/kb/{app_id}/ingest_source", tags=["knowledge_base"])
+async def ingest_source(app_id: str, req: IngestSourceRequest):
+    """
+    Parse and ingest source code and build files from a local directory:
+      - Python (.py): Classes, methods, functions, docstrings, Qt signals/routes
+      - CMake (CMakeLists.txt): Targets, libraries, Qt packages, UI form lists
+      - Qt UI forms (.ui): XML widgets, labels, and screens into ManifestStore
+
+    Chunks are tagged with content_type="source_code" or "ui_description".
+    """
+    app_data = await app_registry.get_app(app_id)
+    if app_data is None:
+        raise HTTPException(status_code=404, detail=f"App '{app_id}' not found")
+
+    target_dir = req.source_path or app_data.get("source_path")
+    if not target_dir:
+        raise HTTPException(
+            status_code=400,
+            detail="No source_path specified in request body or app registration."
+        )
+
+    try:
+        summary = await code_ingestor.ingest_directory(
+            app_id=app_id,
+            directory_path=target_dir,
+            max_files=req.max_files,
+        )
+        return summary
+    except Exception as exc:
+        logger.error("ingest_source failed for app=%s: %s", app_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ── WebSocket Endpoint ────────────────────────────────────────────────────────

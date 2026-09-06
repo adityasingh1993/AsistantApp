@@ -1,4 +1,4 @@
-﻿# AppAI â€” Sprint 0 â†’ Sprint 1: Progress Tracker
+# AppAI â€” Sprint 0 â†’ Sprint 1: Progress Tracker
 
 **Date:** September 2026
 **Status:** ðŸŸ¢ Phase 1 Complete â€” Phase 2 (Source Code Intelligence) is Next
@@ -99,15 +99,16 @@ visually guided step-by-step to complete a task. âœ…
 
 ---
 
-### Phase 2 â€” Source Code Intelligence (Weeks 5â€“8)
-*(No change from original plan)*
+### Phase 2 — Source Code Intelligence (In Progress)
 
+- [x] Python source code parser (`.py` AST: classes, methods, docstrings, Qt signals, routes)
+- [x] CMake build parser (`CMakeLists.txt`: targets, Qt modules, dependencies, `.ui` form lists)
+- [x] Qt Designer UI form parser (`.ui` XML: widgets, labels, screens)
+- [x] Codebase ingestion coordinator (`CodeIngestor` + `/api/kb/{app_id}/ingest_source` endpoint)
+- [x] KB `content_type` tagging (`source_code` vs `ui_description` / `workflow`)
 - [ ] Source code parser: Web (.jsx, .tsx, .vue, .html, routes)
-- [ ] Source code parser: Qt (.ui, .qml, .cpp, .py) â€” for upcoming Qt phase
-- [ ] App Manifest builder + SQLite storage
 - [ ] External doc ingestion (PDF, HTML, Markdown, URLs)
 - [ ] Incremental re-parsing on code update
-- [ ] KB content_type tagging (ui_description / source_code / user_doc / workflow)
 
 ---
 
